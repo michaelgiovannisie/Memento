@@ -59,8 +59,7 @@ public class Notes1 {
             }
 
             if (yamlEnd == -1) {
-                metadata.put("title", filePath.getFileName().toString());
-                return metadata;
+                yamlEnd = lines.size();
             }
 
             // Parse YAML lines (simple parsing for basic key: value pairs)
@@ -70,8 +69,15 @@ public class Notes1 {
                     String[] parts = line.split(":", 2);
                     String key = parts[0].trim();
                     String value = parts[1].trim();
+                    if(key.isEmpty()) {
+                        continue;
+                    }
                     metadata.put(key, value);
                 }
+            }
+
+            if(!metadata.containsKey("title")){
+                metadata.put("title", filePath.getFileName().toString());
             }
 
         } catch (IOException e) {
@@ -202,10 +208,42 @@ public class Notes1 {
                 boolean success = listNotes(notesDir);
                 finish(success ? 0 : 1);
                 break;
+            case "create":
+                createNote(notesDir);
+                finish(0);
             default:
                 System.err.println("Error: Unknown command '" + command + "'");
                 System.err.println("Try 'java Notes1 help' for more information.");
                 finish(1);
         }
     }
+
+    public static void createNote(Path notesDir) {
+        try {
+            Path notesSubdir = notesDir.resolve("notes");
+            Files.createDirectories(notesSubdir);
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            String timestamp = now.toString();
+            String fileName = now.format(
+                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm")
+            ) + ".note";
+            Path notePath = notesSubdir.resolve(fileName);
+            String content = """
+                ---
+                title: New Note
+                author: Michael
+                created: %s
+                tags: []
+                ---
+
+                """.formatted(timestamp);
+            Files.writeString(notePath, content);
+            System.out.println("Note created: " + fileName);
+        }
+        catch (Exception e) {
+            System.out.println("Error creating note: " + e.getMessage());
+        }
+
+    }
+
 }
