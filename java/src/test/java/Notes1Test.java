@@ -1,43 +1,64 @@
 import org.junit.jupiter.api.*;
+import java.io.*;
 import java.nio.file.*;
-import jdk.jfr.Timestamp;
 import static org.junit.jupiter.api.Assertions.*;
 
-public class Notes1Test {
-
-    private Path tempDir;
+class Notes1Test {
 
     private Path tempDir;
 
     @BeforeEach
     void setup() throws Exception {
         tempDir = Files.createTempDirectory("notes-test");
-        Files.createDirectories(tempDir.resolve("notes"));
+        Path notesSubdir = tempDir.resolve("notes");
+        Files.createDirectories(notesSubdir);
+        Path note = notesSubdir.resolve("test.note");
+        Files.writeString(note, """
+            ---
+            title: Test Note
+            created: 2026-04-30
+            tags: [java]
+            ---
+            
+            Hello world
+            """);
     }
 
     @AfterEach
     void cleanup() throws Exception {
         Files.walk(tempDir)
-            .sorted((a, b) -> b.compareTo(a))
-            .forEach(path -> {
-                try {
-                    Files.delete(path);
-                } catch (Exception ignored) {}
-            });
+                .sorted((a, b) -> b.compareTo(a))
+                .forEach(path -> {
+                    try { Files.delete(path); } catch (Exception ignored) {}
+                });
     }
 
     @Test
-    void testDeleteNote() throws Exception {
-        Notes1.createNote(tempDir);
-        Path notesdir = tempDir.resolve("notes");
-        Path file = Files.list(notesSubdir).findFirst().get();
-        String fileName = file.getFileName().toString();
-        Notes1.deleteNote(tempDir, fileName);
-        assertFalse(Files.exists(file),"File should be deleted");
+    void testListCommand() {
+        String output = runMain("list");
+
+        assertTrue(output.contains("Test Note"));
+        assertTrue(output.contains("test.note"));
     }
 
-    @Time
-    void testSearchNote()
+    @Test
+    void testReadCommand() {
+        String output = runMain("read", "test.note");
 
+        assertTrue(output.contains("Hello world"));
+    }
 
+    @Test
+    void testDeleteCommand() throws Exception {
+        runMain("delete", "test.note");
+
+        Path notePath = tempDir.resolve("notes/test.note");
+        assertFalse(Files.exists(notePath));
+    }
+
+    @Test
+    void testSearchCommand() {
+        String output = runMain("search", "java");
+        assertTrue(output.toLowerCase().contains("test.note"));
+    }
 }
