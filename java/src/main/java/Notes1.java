@@ -250,14 +250,14 @@ public class Notes1 {
 
     public static void createNote(Path notesDir, String title, String tags) {
         try {
-            Path notesSubdir = notesDir.resolve("notes");
-            Files.createDirectories(notesSubdir);
+            Path searchDir = getNotesDirectory(notesDir);
+            Files.createDirectories(searchDir);
             java.time.LocalDateTime now = java.time.LocalDateTime.now();
             String timestamp = now.toString();
             String fileName = now.format(
                 java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm")
             ) + ".note";
-            Path notePath = notesSubdir.resolve(fileName);
+            Path notePath = searchDir.resolve(fileName);
             Path tempFile = Files.createTempFile("note-content-", ".txt");
             ProcessBuilder pb = new ProcessBuilder("nano", tempFile.toString());
             pb.inheritIO();
@@ -266,11 +266,11 @@ public class Notes1 {
             String body = Files.readString(tempFile);
             String content = """
                 ---
-                title: %s
-                author: Michael Sie
-                created: %s
+                title       : %s
+                author      : Michael Giovanni Sie
+                created     : %s
                 last_updated: %s
-                tags: [%s]
+                tags        : [%s]
                 ---
 
                 %s
@@ -286,12 +286,9 @@ public class Notes1 {
 
     public static void readNote(Path notesDir, String fileName) {
         try {
-            Path notesSubdir = notesDir.resolve("notes");
-            Path notePath = notesSubdir.resolve(fileName);
-            if (!Files.exists(notePath)) {
-                System.err.println("Note not found: " + fileName);
-                return;
-            }
+            Path searchDir = getNotesDirectory(notesDir);
+            Path notePath = searchDir.resolve(fileName);
+            if (!noteExistence(notePath)) return;
             String content = Files.readString(notePath);
             System.out.println("\n" + content);
         } catch (Exception e) {
@@ -301,12 +298,9 @@ public class Notes1 {
 
     public static void updateNote(Path notesDir, String fileName) {
         try {    
-            Path notesSubdir = notesDir.resolve("notes");
-            Path notePath = notesSubdir.resolve(fileName);
-            if(!Files.exists(notePath)) {
-                System.err.println("Note not found: " + fileName);
-                return;
-            }
+            Path searchDir = getNotesDirectory(notesDir);
+            Path notePath = searchDir.resolve(fileName);
+            if (!noteExistence(notePath)) return;
             String content = Files.readString(notePath);
             Path tempFile = Files.createTempFile("note-content-", ".txt");
             Files.writeString(tempFile, content);
@@ -334,12 +328,9 @@ public class Notes1 {
 
     public static void deleteNote(Path notesDir, String fileName){
         try {
-            Path notesSubdir = notesDir.resolve("notes");
-            Path notePath = notesSubdir.resolve(fileName);
-            if(!Files.exists(notePath)) {
-                System.err.println("Note not found: " + fileName);
-                return;
-            }
+            Path searchDir = getNotesDirectory(notesDir);
+            Path notePath = searchDir.resolve(fileName);
+            if (!noteExistence(notePath)) return;
             Files.delete(notePath);
             System.out.println("Note successfully deleted: " + fileName);
         } catch (Exception e) {
@@ -354,8 +345,7 @@ public class Notes1 {
             System.err.println("Then copy test notes: cp test-notes/*.md ~/.notes/notes/");
             return;
         }
-        Path notesSubdir = notesDir.resolve("notes");
-        Path searchDir = Files.exists(notesSubdir) ? notesSubdir : notesDir;
+        Path searchDir = getNotesDirectory(notesDir);
         List<Path> noteFiles;
             try (Stream<Path> paths = Files.walk(searchDir, 1)) {
                 noteFiles = paths
@@ -392,6 +382,19 @@ public class Notes1 {
         if(!found) {
                 System.out.println("No file contains: " + keyword);
             }  
+    }
+
+    private static Path getNotesDirectory(Path notesDir) {
+        Path notesSubdir = notesDir.resolve("notes");
+        return Files.exists(notesSubdir) ? notesSubdir : notesDir;
+    }
+
+    private static boolean noteExistence(Path notePath) {
+        if (!Files.exists(notePath)) {
+                System.err.println("Note not found: " + notePath.fileName);
+                return false;
+            }
+            return true;
     }
 }
 
