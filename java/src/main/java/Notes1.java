@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Stream;
 
+
 /**
  * Future Proof Notes Manager - Version One (CLI)
  * A personal notes manager using text files with YAML headers.
@@ -271,6 +272,7 @@ public class Notes1 {
                 created     : %s
                 last_updated: %s
                 tags        : [%s]
+                image       : %s
                 ---
 
                 %s
@@ -391,11 +393,209 @@ public class Notes1 {
 
     private static boolean noteExistence(Path notePath) {
         if (!Files.exists(notePath)) {
-                System.err.println("Note not found: " + notePath.fileName);
+                System.err.println("Note not found: " + notePath.getFileName());
                 return false;
             }
             return true;
     }
+
+    public static String listNotesAsString(Path notesDir) {
+        StringBuilder sb = new StringBuilder();
+
+        Path notesSubdir = notesDir.resolve("notes");
+        Path searchDir = Files.exists(notesSubdir) ? notesSubdir : notesDir;
+
+        try (Stream<Path> paths = Files.walk(searchDir, 1)) {
+            List<Path> noteFiles = paths
+                    .filter(Files::isRegularFile)
+                    .filter(p -> {
+                        String name = p.getFileName().toString();
+                        return name.endsWith(".md") || name.endsWith(".note") || name.endsWith(".txt");
+                    })
+                    .sorted((p1, p2) -> {
+                        try {
+                            return Files.getLastModifiedTime(p2)
+                                    .compareTo(Files.getLastModifiedTime(p1));
+                        } catch (IOException e) {
+                            return 0;
+                        }
+                    })
+                    .toList();
+
+            for (Path noteFile : noteFiles) {
+                Map<String, String> metadata = parseYamlHeader(noteFile);
+                String title = metadata.getOrDefault("title", noteFile.getFileName().toString());
+                sb.append(noteFile.getFileName()).append(" - ").append(title).append("\n");
+            }
+
+        } catch (IOException e) {
+            return "Error: " + e.getMessage();
+        }
+
+        return sb.toString();
+    }
+    
+    public static String readNoteAsString(Path notesDir, String fileName) {
+        try {
+            Path searchDir = getNotesDirectory(notesDir);
+            Path notePath = searchDir.resolve(fileName);
+
+            if (!Files.exists(notePath)) {
+                return "Note not found";
+            }
+
+            return Files.readString(notePath);
+
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    public static String createNoteFromUI(Path notesDir, String title, String content, String tags, String image) {
+        try {
+            Path searchDir = getNotesDirectory(notesDir);
+            Files.createDirectories(searchDir);
+
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            String timestamp = now.toString();
+
+            String fileName = now.format(
+                java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd-HH-mm-ss")
+            ) + ".note";
+
+            Path notePath = searchDir.resolve(fileName);
+
+            String note = """
+                ---
+                title: %s
+                created: %s
+                last_updated: %s
+                tags: [%s]
+                image: %s
+                ---
+
+                %s
+                """.formatted(title, timestamp, timestamp, tags, image, content);
+
+            Files.writeString(notePath, note);
+
+            return "Created: " + fileName;
+
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    public static String deleteNoteFromUI(Path notesDir, String fileName) {
+        try {
+            Path searchDir = getNotesDirectory(notesDir);
+            Path notePath = searchDir.resolve(fileName);
+            if (!Files.exists(notePath)) {
+                return "Note not found";
+            }
+            Files.delete(notePath);
+            return "Deleted: " + fileName;
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    public static String updateNoteFromUI(Path notesDir, String fileName, String title, String tags, String image, String newContent) {
+        try {
+            Path searchDir = getNotesDirectory(notesDir);
+            Path notePath = searchDir.resolve(fileName);
+
+            if (!Files.exists(notePath)) {
+                return "Note not found";
+            }
+
+            String existing = Files.readString(notePath);
+
+            String created = "";
+
+            // 🔥 extract created
+            for (String line : existing.split("\n")) {
+                if (line.startsWith("created:")) {
+                    created = line.replace("created:", "").trim();
+                    break;
+                }
+            }
+
+            java.time.LocalDateTime now = java.time.LocalDateTime.now();
+            String updatedTime = now.toString();
+
+            String updated = """
+                ---
+                title: %s
+                created: %s
+                last_updated: %s
+                tags: [%s]
+                image: %s
+                ---
+
+                %s
+                """.formatted(title, created, updatedTime, tags, image, newContent);
+
+            Files.writeString(notePath, updated);
+
+            return "Updated: " + fileName;
+
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    public static String getRandomNote(Path notesDir) {
+        try {
+            Path searchDir = getNotesDirectory(notesDir);
+
+            List<Path> files = Files.list(searchDir)
+                    .filter(Files::isRegularFile)
+                    .toList();
+
+            if (files.isEmpty()) return "No memories found.";
+
+            java.util.Random rand = new java.util.Random();
+            Path random = files.get(rand.nextInt(files.size()));
+
+            return Files.readString(random);
+
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    public static String searchNotes(Path notesDir, String keyword) {
+        StringBuilder result = new StringBuilder();
+
+        try {
+            Path searchDir = getNotesDirectory(notesDir);
+
+            Files.list(searchDir).forEach(path -> {
+                try {
+                    String content = Files.readString(path).toLowerCase();
+
+                    if (content.contains(keyword)) {
+
+                        Map<String, String> metadata = parseYamlHeader(path);
+                        String title = metadata.getOrDefault("title", path.getFileName().toString());
+
+                        result.append(path.getFileName())
+                            .append(" - ")
+                            .append(title)
+                            .append("\n");
+                    }
+
+                } catch (Exception ignored) {}
+            });
+
+        } catch (Exception e) {
+            return "Error: " + e.getMessage();
+        }
+
+        return result.toString();
+    }
+
 }
 
 
